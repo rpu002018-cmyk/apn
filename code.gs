@@ -10,8 +10,37 @@ const SHEETS = {
   DOCUMENTS: "Documents",
   DOCUMENTS_ISSUED: "Documents Issued",
   OPERATORS: "Operators",
-  EMAIL_LOG: "Email Log"
+  EMAIL_LOG: "Email Log",
+  DOCUMENT_MASTER: "Document Master"
 };
+
+// RECEIVED DOCUMENTS LIST
+const RECEIVED_DOCUMENTS = [
+  "10Th marks sheet Original",
+  "10Th marks sheet Xerox",
+  "10Th Hall Ticket Xerox",
+  "10Th Transfer Certificate Original",
+  "10Th Transfer Certificate Xerox",
+  "Study Certificate Xerox",
+  "Migration Certificate Original",
+  "Migration Certificate Xerox",
+  "Student Photo",
+  "Caste And Income Certificate Xerox",
+  "Aadhar Card Student Xerox",
+  "Aadhar Card Mother Xerox",
+  "Aadhar Card Father Xerox"
+];
+
+// ISSUED DOCUMENTS LIST
+const ISSUED_DOCUMENTS = [
+  "I PUC Marks Card Original",
+  "I PUC Transfer Certificate Original",
+  "I PUC Study Certificate Only Original",
+  "II PUC Marks Card Original",
+  "II PUC Transfer Certificate Original",
+  "II PUC Study Certificate Only Original",
+  "I and II PUC Study Certificate Original"
+];
 
 /***********************
  * COMMON
@@ -54,6 +83,17 @@ function validateOperator(id, pwd) {
     }
   }
   return { success: false };
+}
+
+/***********************
+ * GET DOCUMENT LISTS
+ ***********************/
+function getReceivedDocumentsList() {
+  return RECEIVED_DOCUMENTS;
+}
+
+function getIssuedDocumentsList() {
+  return ISSUED_DOCUMENTS;
 }
 
 /***********************
@@ -121,6 +161,8 @@ function searchStudent(value) {
  ***********************/
 function loadExistingDocuments(applicationNo) {
   const sh = getSS().getSheetByName(SHEETS.DOCUMENTS);
+  if (!sh) return [];
+  
   const data = sh.getDataRange().getValues();
 
   return data
@@ -140,18 +182,17 @@ function loadExistingDocuments(applicationNo) {
 }
 
 /***********************
- * SAVE DOCUMENTS - RECEIVED MODE (FINAL LOGIC)
- * - Do NOT overwrite receivedBy/submittedBy/submittedDate if document was already submitted.
- * - Only set receivedBy when there is a NEW submission for that document (i.e., a flag changes from false to true).
+ * SAVE DOCUMENTS - RECEIVED MODE
  ***********************/
 function saveDocuments(payload) {
   try {
     const sh = getSS().getSheetByName(SHEETS.DOCUMENTS);
+    if (!sh) throw new Error("Documents sheet not found");
+    
     const data = sh.getDataRange().getValues();
     const now = new Date();
 
     payload.documents.forEach(doc => {
-      // find existing row for this application+doc name
       let rowIndex = -1;
       let existing = null;
       for (let i = 1; i < data.length; i++) {
@@ -159,7 +200,7 @@ function saveDocuments(payload) {
           String(data[i][0]).trim() === String(payload.applicationNo).trim() &&
           String(data[i][2]).trim() === String(doc.name).trim()
         ) {
-          rowIndex = i + 1; // sheet row number
+          rowIndex = i + 1;
           existing = data[i];
           break;
         }
@@ -168,33 +209,25 @@ function saveDocuments(payload) {
       const existingOriginal = existing ? toBool(existing[3]) : false;
       const existingXerox = existing ? toBool(existing[4]) : false;
 
-      // Determine if this payload is trying to set original/xerox
       const wantsOriginal = Boolean(doc.original);
       const wantsXerox = Boolean(doc.xerox);
 
-      // Determine if there is a NEW submission being added now
       const newOriginalSubmitted = wantsOriginal && !existingOriginal;
       const newXeroxSubmitted = wantsXerox && !existingXerox;
       const isNewSubmission = newOriginalSubmitted || newXeroxSubmitted;
 
-      // If document already fully submitted (both flags true) and nothing new => skip (preserve)
       if (existing && existingOriginal && existingXerox && !isNewSubmission) {
         return;
       }
 
-      // Final flags should be union of existing and new
       const finalOriginal = existingOriginal || wantsOriginal;
       const finalXerox = existingXerox || wantsXerox;
 
-      // Decide submitted date / submittedBy / receivedBy:
-      // - If there is an existing submitted date and no new submission, preserve it.
-      // - If this call includes a new submission, set submittedDate = now and receivedBy = payload.operatorName
       let submitDateValue = "";
       let submittedByValue = "";
       let receivedByValue = "";
 
       if (existing && existing[6]) {
-        // existing date present
         submitDateValue = existing[6];
       }
 
@@ -208,32 +241,26 @@ function saveDocuments(payload) {
 
       if (isNewSubmission) {
         submitDateValue = now;
-        // prefer document-level submittedBy if passed, else payload default
         submittedByValue = doc.submittedBy || submittedByValue || "";
-        // Set receivedBy only for the first time this doc is submitted.
-        // If already had receivedBy, preserve it; only set if empty.
         if (!receivedByValue) {
           receivedByValue = payload.operatorName || "";
-        } else {
-          // If receivedBy exists, do not overwrite (user requirement)
-          // keep existing receivedByValue
         }
       }
 
       const status = (finalOriginal || finalXerox) ? "Submitted" : "Pending";
 
       const row = [
-        payload.applicationNo,             // A
-        payload.studentName,               // B
-        doc.name,                          // C
-        finalOriginal,                     // D Original
-        finalXerox,                        // E Xerox
-        status,                            // F Status
-        submitDateValue,                   // G Submitted Date (Date or "")
-        submittedByValue,                  // H Submitted By
-        receivedByValue,                   // I Received By
-        now,                               // J Last Updated
-        payload.operatorId                 // K Updated By
+        payload.applicationNo,
+        payload.studentName,
+        doc.name,
+        finalOriginal,
+        finalXerox,
+        status,
+        submitDateValue,
+        submittedByValue,
+        receivedByValue,
+        now,
+        payload.operatorId
       ];
 
       if (rowIndex > 0) {
@@ -243,7 +270,6 @@ function saveDocuments(payload) {
       }
     });
 
-    // EMAIL ACKNOWLEDGEMENT
     if (payload.email) {
       sendAcknowledgementEmail(payload);
     }
@@ -281,30 +307,25 @@ function loadIssuedDocuments(applicationNo) {
 
 /***********************
  * SAVE DOCUMENTS - ISSUED MODE
- * - Tracks documents issued TO students (certificates, admit cards, etc.)
- * - Documents can be issued multiple times with quantity tracking
- * - Preserves issuedBy and receivedBy information
  ***********************/
 function saveIssuedDocuments(payload) {
   try {
     let sh = getSS().getSheetByName(SHEETS.DOCUMENTS_ISSUED);
     
-    // Create sheet if it doesn't exist
     if (!sh) {
       sh = getSS().insertSheet(SHEETS.DOCUMENTS_ISSUED);
-      // Add headers
       sh.appendRow([
-        "Application No",      // A
-        "Student Name",        // B
-        "Document Name",       // C
-        "Quantity",            // D
-        "Issued Date",         // E
-        "Issued By",           // F
-        "Received By",         // G
-        "Remarks",             // H
-        "Status",              // I
-        "Last Updated",        // J
-        "Updated By"           // K
+        "Application No",
+        "Student Name",
+        "Document Name",
+        "Quantity",
+        "Issued Date",
+        "Issued By",
+        "Received By",
+        "Remarks",
+        "Status",
+        "Last Updated",
+        "Updated By"
       ]);
     }
 
@@ -312,7 +333,6 @@ function saveIssuedDocuments(payload) {
     const now = new Date();
 
     payload.documents.forEach(doc => {
-      // find existing row for this application+doc name
       let rowIndex = -1;
       let existing = null;
       for (let i = 1; i < data.length; i++) {
@@ -320,13 +340,12 @@ function saveIssuedDocuments(payload) {
           String(data[i][0]).trim() === String(payload.applicationNo).trim() &&
           String(data[i][2]).trim() === String(doc.name).trim()
         ) {
-          rowIndex = i + 1; // sheet row number
+          rowIndex = i + 1;
           existing = data[i];
           break;
         }
       }
 
-      // Get existing values if document exists
       let issuedDateValue = now;
       let issuedByValue = doc.issuedBy || payload.operatorName || "";
       let receivedByValue = doc.receivedBy || "";
@@ -335,32 +354,26 @@ function saveIssuedDocuments(payload) {
       let statusValue = doc.status || "Issued";
 
       if (existing) {
-        // Preserve existing issued date, only use current date if first time
         issuedDateValue = existing[4] || now;
-        // Preserve existing issuedBy
         issuedByValue = existing[5] || issuedByValue;
-        // Update receivedBy if provided
         receivedByValue = doc.receivedBy || existing[6] || "";
-        // Update remarks
         remarksValue = doc.remarks || existing[7] || "";
-        // Update quantity (sum if multiple issues)
         quantityValue = doc.quantity ? (parseInt(existing[3] || 0) + parseInt(doc.quantity)) : (existing[3] || 1);
-        // Update status
         statusValue = doc.status || existing[8] || "Issued";
       }
 
       const row = [
-        payload.applicationNo,             // A
-        payload.studentName,               // B
-        doc.name,                          // C
-        quantityValue,                     // D Quantity
-        issuedDateValue,                   // E Issued Date
-        issuedByValue,                     // F Issued By
-        receivedByValue,                   // G Received By
-        remarksValue,                      // H Remarks
-        statusValue,                       // I Status
-        now,                               // J Last Updated
-        payload.operatorId                 // K Updated By
+        payload.applicationNo,
+        payload.studentName,
+        doc.name,
+        quantityValue,
+        issuedDateValue,
+        issuedByValue,
+        receivedByValue,
+        remarksValue,
+        statusValue,
+        now,
+        payload.operatorId
       ];
 
       if (rowIndex > 0) {
@@ -370,7 +383,6 @@ function saveIssuedDocuments(payload) {
       }
     });
 
-    // EMAIL ACKNOWLEDGEMENT FOR ISSUED DOCUMENTS
     if (payload.email) {
       sendIssuanceAcknowledgementEmail(payload);
     }
@@ -404,7 +416,6 @@ function sendAcknowledgementEmail(payload) {
   let sl = 1;
   payload.documents.forEach(d => {
     if (d.original || d.xerox) {
-      // Prefer any provided submittedDate, otherwise use current date
       const dateStr = d.submittedDate
         ? d.submittedDate
         : Utilities.formatDate(new Date(), TZ, DATE_FORMAT);
