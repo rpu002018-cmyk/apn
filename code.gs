@@ -10,8 +10,7 @@ const SHEETS = {
   DOCUMENTS: "Documents",
   DOCUMENTS_ISSUED: "Documents Issued",
   OPERATORS: "Operators",
-  EMAIL_LOG: "Email Log",
-  DOCUMENT_MASTER: "Document Master"
+  EMAIL_LOG: "Email Log"
 };
 
 // RECEIVED DOCUMENTS LIST
@@ -96,19 +95,16 @@ function getIssuedDocumentsList() {
   return ISSUED_DOCUMENTS;
 }
 
-/***********************
+/*****************************
  * STUDENT CRUD
- ***********************/
+ *****************************/
 function addStudent(student) {
-  // student: { registerNo, applicationNo, name, section, subSection, email }
   const sh = getSS().getSheetByName(SHEETS.STUDENTS);
   if (!sh) throw new Error("Students sheet not found");
-  // Basic validation
   if (!student || !student.registerNo || !student.applicationNo || !student.name) {
     return { success: false, error: "Register No, Application No and Name are required" };
   }
 
-  // Prevent duplicates by applicationNo or registerNo
   const data = sh.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === String(student.registerNo).trim() ||
@@ -129,9 +125,9 @@ function addStudent(student) {
   return { success: true };
 }
 
-/***********************
+/*****************************
  * STUDENT SEARCH
- ***********************/
+ *****************************/
 function searchStudent(value) {
   const sh = getSS().getSheetByName(SHEETS.STUDENTS);
   const data = sh.getDataRange().getValues();
@@ -156,9 +152,9 @@ function searchStudent(value) {
   return null;
 }
 
-/***********************
+/*****************************
  * LOAD EXISTING DOCUMENTS (RECEIVED MODE)
- ***********************/
+ *****************************/
 function loadExistingDocuments(applicationNo) {
   const sh = getSS().getSheetByName(SHEETS.DOCUMENTS);
   if (!sh) return [];
@@ -173,7 +169,7 @@ function loadExistingDocuments(applicationNo) {
         name: r[2],
         original: toBool(r[3]),
         xerox: toBool(r[4]),
-        status: r[5] || ( (toBool(r[3]) || toBool(r[4])) ? "Submitted" : "Pending" ),
+        status: r[5] || ((toBool(r[3]) || toBool(r[4])) ? "Submitted" : "Pending"),
         submittedDate: submittedDate,
         submittedBy: r[7] || "",
         receivedBy: r[8] || ""
@@ -181,9 +177,9 @@ function loadExistingDocuments(applicationNo) {
     });
 }
 
-/***********************
+/*****************************
  * SAVE DOCUMENTS - RECEIVED MODE
- ***********************/
+ *****************************/
 function saveDocuments(payload) {
   try {
     const sh = getSS().getSheetByName(SHEETS.DOCUMENTS);
@@ -280,9 +276,9 @@ function saveDocuments(payload) {
   }
 }
 
-/***********************
+/*****************************
  * LOAD EXISTING DOCUMENTS - ISSUED MODE
- ***********************/
+ *****************************/
 function loadIssuedDocuments(applicationNo) {
   const sh = getSS().getSheetByName(SHEETS.DOCUMENTS_ISSUED);
   if (!sh) return [];
@@ -305,9 +301,9 @@ function loadIssuedDocuments(applicationNo) {
     });
 }
 
-/***********************
+/*****************************
  * SAVE DOCUMENTS - ISSUED MODE
- ***********************/
+ *****************************/
 function saveIssuedDocuments(payload) {
   try {
     let sh = getSS().getSheetByName(SHEETS.DOCUMENTS_ISSUED);
@@ -393,83 +389,47 @@ function saveIssuedDocuments(payload) {
   }
 }
 
-/***********************
+/*****************************
  * EMAIL ACKNOWLEDGEMENT - RECEIVED MODE
- ***********************/
+ *****************************/
 function sendAcknowledgementEmail(payload) {
   if (!payload.email) return;
 
-  const subject = `Admission Document Acknowledgement - ${payload.applicationNo}`;
+  const subject = "Admission Document Acknowledgement - " + payload.applicationNo;
 
-  let table = `
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
-      <tr>
-        <th>SL.NO</th>
-        <th>Document</th>
-        <th>Original</th>
-        <th>Xerox</th>
-        <th>Submitted By</th>
-        <th>Date</th>
-        <th>Received By</th>
-      </tr>`;
+  let table = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; width:100%;'>";
+  table += "<tr><th>SL.NO</th><th>Document</th><th>Original</th><th>Xerox</th><th>Submitted By</th><th>Date</th><th>Received By</th></tr>";
 
   let sl = 1;
   payload.documents.forEach(d => {
     if (d.original || d.xerox) {
-      const dateStr = d.submittedDate
-        ? d.submittedDate
-        : Utilities.formatDate(new Date(), TZ, DATE_FORMAT);
-
-      table += `
-          <tr>
-            <td>${sl++}</td>
-            <td>${d.name}</td>
-            <td style="text-align:center">${d.original ? "✔" : ""}</td>
-            <td style="text-align:center">${d.xerox ? "✔" : ""}</td>
-            <td>${d.submittedBy || ""}</td>
-            <td>${dateStr}</td>
-            <td>${payload.operatorName}</td>
-          </tr>`;
+      const dateStr = d.submittedDate ? d.submittedDate : Utilities.formatDate(new Date(), TZ, DATE_FORMAT);
+      table += "<tr>";
+      table += "<td>" + (sl++) + "</td>";
+      table += "<td>" + d.name + "</td>";
+      table += "<td style='text-align:center'>" + (d.original ? "✔" : "") + "</td>";
+      table += "<td style='text-align:center'>" + (d.xerox ? "✔" : "") + "</td>";
+      table += "<td>" + (d.submittedBy || "") + "</td>";
+      table += "<td>" + dateStr + "</td>";
+      table += "<td>" + payload.operatorName + "</td>";
+      table += "</tr>";
     }
   });
+  table += "</table>";
 
-  table += `</table>`;
-
-  const body = `
-      <p>Dear Student / Parent,</p>
-
-<p>
-  This is to acknowledge the receipt of the documents submitted by the student.
-  The submitted documents have been reviewed and verified as per college records.
-</p>
-
-<p><strong>Student Details:</strong></p>
-<p>
-  Name: ${payload.studentName}<br>
-  Application No: ${payload.applicationNo}<br>
-  Section: ${payload.section || "-"}<br>
-  Sub-Section: ${payload.subSection || "-"}
-</p>
-
-${table}
-
-<p>
-  Please note that this acknowledgement is issued for record purposes only.
-</p>
-
-<p>
-  Yours faithfully,<br>
-  Office<br>
-  <strong>REVA Independent PU College</strong><br>
-  Rukmini Knowledge Park,<br>
-  Kattigenahalli, Yelahanka,<br>
-  Bangalore – 560064.<br><br>
-
-  Phone: 080-46966966 (Ext: 184)<br>
-  Email: <a href="mailto:ripu.k@reva.edu.in">ripu.k@reva.edu.in</a>
-</p>
-
-    `;
+  const body = "<p>Dear Student / Parent,</p>" +
+    "<p>This is to acknowledge the receipt of the documents submitted by the student. The submitted documents have been reviewed and verified as per college records.</p>" +
+    "<p><strong>Student Details:</strong></p>" +
+    "<p>Name: " + payload.studentName + "<br/>" +
+    "Application No: " + payload.applicationNo + "<br/>" +
+    "Section: " + (payload.section || "-") + "<br/>" +
+    "Sub-Section: " + (payload.subSection || "-") + "</p>" +
+    table +
+    "<p>Please note that this acknowledgement is issued for record purposes only.</p>" +
+    "<p>Yours faithfully,<br/>Office<br/><strong>REVA Independent PU College</strong><br/>" +
+    "Rukmini Knowledge Park,<br/>Kattigenahalli, Yelahanka,<br/>Bangalore – 560064.<br/><br/>" +
+    "Phone: 080-46966966 (Ext: 184)<br/>" +
+    "Email: <a href='mailto:ripu.k@reva.edu.in'>ripu.k@reva.edu.in</a></p>";
 
   MailApp.sendEmail({
     to: payload.email,
@@ -480,82 +440,45 @@ ${table}
   logEmail(payload);
 }
 
-/***********************
+/*****************************
  * EMAIL ACKNOWLEDGEMENT - ISSUED MODE
- ***********************/
+ *****************************/
 function sendIssuanceAcknowledgementEmail(payload) {
   if (!payload.email) return;
 
-  const subject = `Document Issuance Acknowledgement - ${payload.applicationNo}`;
+  const subject = "Document Issuance Acknowledgement - " + payload.applicationNo;
 
-  let table = `
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
-      <tr>
-        <th>SL.NO</th>
-        <th>Document</th>
-        <th>Quantity</th>
-        <th>Issued By</th>
-        <th>Date</th>
-        <th>Status</th>
-        <th>Remarks</th>
-      </tr>`;
+  let table = "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; width:100%;'>";
+  table += "<tr><th>SL.NO</th><th>Document</th><th>Quantity</th><th>Issued By</th><th>Date</th><th>Status</th><th>Remarks</th></tr>";
 
   let sl = 1;
   payload.documents.forEach(d => {
-    const dateStr = d.issuedDate
-      ? d.issuedDate
-      : Utilities.formatDate(new Date(), TZ, DATE_FORMAT);
-
-    table += `
-          <tr>
-            <td>${sl++}</td>
-            <td>${d.name}</td>
-            <td style="text-align:center">${d.quantity || 1}</td>
-            <td>${d.issuedBy || payload.operatorName}</td>
-            <td>${dateStr}</td>
-            <td>${d.status || "Issued"}</td>
-            <td>${d.remarks || "-"}</td>
-          </tr>`;
+    const dateStr = d.issuedDate ? d.issuedDate : Utilities.formatDate(new Date(), TZ, DATE_FORMAT);
+    table += "<tr>";
+    table += "<td>" + (sl++) + "</td>";
+    table += "<td>" + d.name + "</td>";
+    table += "<td style='text-align:center'>" + (d.quantity || 1) + "</td>";
+    table += "<td>" + (d.issuedBy || payload.operatorName) + "</td>";
+    table += "<td>" + dateStr + "</td>";
+    table += "<td>" + (d.status || "Issued") + "</td>";
+    table += "<td>" + (d.remarks || "-") + "</td>";
+    table += "</tr>";
   });
+  table += "</table>";
 
-  table += `</table>`;
-
-  const body = `
-      <p>Dear Student / Parent,</p>
-
-<p>
-  This is to acknowledge the issuance of the following documents to the student.
-  Please keep this acknowledgement for your records.
-</p>
-
-<p><strong>Student Details:</strong></p>
-<p>
-  Name: ${payload.studentName}<br>
-  Application No: ${payload.applicationNo}<br>
-  Section: ${payload.section || "-"}<br>
-  Sub-Section: ${payload.subSection || "-"}
-</p>
-
-${table}
-
-<p>
-  Please collect the documents from the office at your earliest convenience.
-  In case of any discrepancy, please contact the office immediately.
-</p>
-
-<p>
-  Yours faithfully,<br>
-  Office<br>
-  <strong>REVA Independent PU College</strong><br>
-  Rukmini Knowledge Park,<br>
-  Kattigenahalli, Yelahanka,<br>
-  Bangalore – 560064.<br><br>
-
-  Phone: 080-46966966 (Ext: 184)<br>
-  Email: <a href="mailto:ripu.k@reva.edu.in">ripu.k@reva.edu.in</a>
-</p>
-
-    `;
+  const body = "<p>Dear Student / Parent,</p>" +
+    "<p>This is to acknowledge the issuance of the following documents to the student. Please keep this acknowledgement for your records.</p>" +
+    "<p><strong>Student Details:</strong></p>" +
+    "<p>Name: " + payload.studentName + "<br/>" +
+    "Application No: " + payload.applicationNo + "<br/>" +
+    "Section: " + (payload.section || "-") + "<br/>" +
+    "Sub-Section: " + (payload.subSection || "-") + "</p>" +
+    table +
+    "<p>Please collect the documents from the office at your earliest convenience. In case of any discrepancy, please contact the office immediately.</p>" +
+    "<p>Yours faithfully,<br/>Office<br/><strong>REVA Independent PU College</strong><br/>" +
+    "Rukmini Knowledge Park,<br/>Kattigenahalli, Yelahanka,<br/>Bangalore – 560064.<br/><br/>" +
+    "Phone: 080-46966966 (Ext: 184)<br/>" +
+    "Email: <a href='mailto:ripu.k@reva.edu.in'>ripu.k@reva.edu.in</a></p>";
 
   MailApp.sendEmail({
     to: payload.email,
@@ -566,9 +489,9 @@ ${table}
   logEmail(payload);
 }
 
-/***********************
+/*****************************
  * EMAIL LOG
- ***********************/
+ *****************************/
 function logEmail(payload) {
   const sh = getSS().getSheetByName(SHEETS.EMAIL_LOG);
   sh.appendRow([
