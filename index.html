@@ -218,7 +218,7 @@
       padding: 20px;
       border-radius: 8px;
       margin-bottom: 20px;
-      max-height: 400px;
+      max-height: 500px;
       overflow-y: auto;
     }
 
@@ -234,9 +234,6 @@
       margin-bottom: 10px;
       border-radius: 5px;
       border-left: 4px solid #667eea;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
 
     .document-item.received {
@@ -248,12 +245,12 @@
     }
 
     .document-info {
-      flex: 1;
+      margin-bottom: 10px;
     }
 
     .document-info h4 {
       color: #333;
-      margin-bottom: 5px;
+      margin-bottom: 8px;
       font-size: 14px;
     }
 
@@ -263,21 +260,12 @@
       margin-bottom: 3px;
     }
 
-    .document-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .document-actions button {
-      padding: 6px 12px;
-      font-size: 12px;
-    }
-
     .checkbox-group {
       display: flex;
-      gap: 20px;
+      gap: 15px;
       align-items: center;
       margin: 10px 0;
+      flex-wrap: wrap;
     }
 
     .checkbox-group label {
@@ -292,6 +280,29 @@
     .checkbox-group input[type="checkbox"] {
       width: auto;
       margin: 0;
+    }
+
+    .dropdown-group {
+      display: flex;
+      gap: 10px;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+
+    .dropdown-group label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 0;
+      font-weight: 500;
+      font-size: 12px;
+    }
+
+    .dropdown-group select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 12px;
     }
 
     .alert {
@@ -344,39 +355,6 @@
       display: none !important;
     }
 
-    .table-responsive {
-      overflow-x: auto;
-      margin-top: 15px;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    table thead {
-      background: #f8f9fa;
-    }
-
-    table th {
-      padding: 12px;
-      text-align: left;
-      font-weight: 600;
-      color: #333;
-      border-bottom: 2px solid #ddd;
-    }
-
-    table td {
-      padding: 10px 12px;
-      border-bottom: 1px solid #ddd;
-      color: #666;
-    }
-
-    table tr:hover {
-      background: #f8f9fa;
-    }
-
     .status-badge {
       display: inline-block;
       padding: 4px 10px;
@@ -413,16 +391,6 @@
         flex-direction: column;
       }
 
-      .document-item {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .document-actions {
-        margin-top: 10px;
-        width: 100%;
-      }
-
       .mode-tabs {
         flex-direction: column;
       }
@@ -435,6 +403,10 @@
 
       .document-list {
         max-height: 300px;
+      }
+
+      .dropdown-group {
+        flex-direction: column;
       }
     }
   </style>
@@ -561,7 +533,7 @@
           </div>
 
           <div class="document-list" id="documentListIssued">
-            <h3>Add Documents to Issue</h3>
+            <h3>Select Documents to Issue</h3>
           </div>
 
           <div class="form-group">
@@ -588,6 +560,8 @@
   </div>
 
   <script>
+    const PERSON_OPTIONS = ["Student", "Mother", "Father", "Sister", "Brother", "Guardian"];
+
     let currentOperator = null;
     let receivedDocumentsList = [];
     let issuedDocumentsList = [];
@@ -697,27 +671,48 @@
         
         selectedDocuments = {};
         existingDocs.forEach(doc => {
-          selectedDocuments[doc.name] = { original: doc.original, xerox: doc.xerox };
+          selectedDocuments[doc.name] = { 
+            original: doc.original, 
+            xerox: doc.xerox,
+            submittedBy: doc.submittedBy,
+            receivedBy: doc.receivedBy
+          };
         });
 
-        receivedDocumentsList.forEach((docName, index) => {
+        receivedDocumentsList.forEach((docName) => {
           const existing = existingDocs.find(d => d.name === docName) || {};
-          const docHtml = `
-            <div class="document-item received">
-              <div class="document-info">
-                <h4>${docName}</h4>
-                ${existing.status ? '<p>Status: <span class="status-badge status-' + existing.status.toLowerCase() + '">' + existing.status + '</span></p>' : ''}
-                ${existing.submittedDate ? '<p>Submitted: ' + existing.submittedDate + '</p>' : ''}
-                ${existing.receivedBy ? '<p>Received by: ' + existing.receivedBy + '</p>' : ''}
-              </div>
-              <div class="document-actions">
-                <div class="checkbox-group" style="margin: 0;">
-                  <label>Original <input type="checkbox" class="docOriginal" data-doc="${docName}" ${existing.original ? 'checked' : ''} onchange="updateSelection('${docName}', 'original', this.checked)"></label>
-                  <label>Xerox <input type="checkbox" class="docXerox" data-doc="${docName}" ${existing.xerox ? 'checked' : ''} onchange="updateSelection('${docName}', 'xerox', this.checked)"></label>
-                </div>
-              </div>
-            </div>
-          `;
+          const docHtml = 
+            "<div class='document-item received'>" +
+            "<div class='document-info'>" +
+            "<h4>" + docName + "</h4>" +
+            (existing.status ? "<p>Status: <span class='status-badge status-" + existing.status.toLowerCase() + "'>" + existing.status + "</span></p>" : "") +
+            (existing.submittedDate ? "<p>Submitted: " + existing.submittedDate + "</p>" : "") +
+            (existing.receivedBy ? "<p>Received by: " + existing.receivedBy + "</p>" : "") +
+            "</div>" +
+            "<div class='checkbox-group' style='margin: 10px 0;'>" +
+            "<label>Original <input type='checkbox' class='docOriginal' data-doc='" + docName + "' " + (existing.original ? "checked" : "") + " onchange=\"updateSelection('" + docName + "', 'original', this.checked)\"></label>" +
+            "<label>Xerox <input type='checkbox' class='docXerox' data-doc='" + docName + "' " + (existing.xerox ? "checked" : "") + " onchange=\"updateSelection('" + docName + "', 'xerox', this.checked)\"></label>" +
+            "</div>" +
+            "<div class='dropdown-group'>" +
+            "<label>Submitted By<select class='submittedBySelect' data-doc='" + docName + "' onchange=\"updateSelection('" + docName + "', 'submittedBy', this.value)\">" +
+            "<option value=''>-- Select --</option>";
+          
+          PERSON_OPTIONS.forEach(person => {
+            docHtml += "<option value='" + person + "' " + (existing.submittedBy === person ? "selected" : "") + ">" + person + "</option>";
+          });
+          
+          docHtml += "</select></label>" +
+            "<label>Received By<select class='receivedBySelect' data-doc='" + docName + "' onchange=\"updateSelection('" + docName + "', 'receivedBy', this.value)\">" +
+            "<option value=''>-- Select --</option>";
+          
+          PERSON_OPTIONS.forEach(person => {
+            docHtml += "<option value='" + person + "' " + (existing.receivedBy === person ? "selected" : "") + ">" + person + "</option>";
+          });
+          
+          docHtml += "</select></label>" +
+            "</div>" +
+            "</div>";
+          
           html += docHtml;
         });
 
@@ -728,11 +723,11 @@
       }).loadExistingDocuments(appNo);
     }
 
-    function updateSelection(docName, type, checked) {
+    function updateSelection(docName, field, value) {
       if (!selectedDocuments[docName]) {
-        selectedDocuments[docName] = { original: false, xerox: false };
+        selectedDocuments[docName] = { original: false, xerox: false, submittedBy: '', receivedBy: '' };
       }
-      selectedDocuments[docName][type] = checked;
+      selectedDocuments[docName][field] = value;
     }
 
     function saveDocumentsReceived() {
@@ -743,9 +738,15 @@
       const sendEmail = document.getElementById('sendEmailReceived').checked;
 
       const documents = [];
-      for (const [name, flags] of Object.entries(selectedDocuments)) {
-        if (flags.original || flags.xerox) {
-          documents.push({ name, original: flags.original, xerox: flags.xerox });
+      for (const [name, data] of Object.entries(selectedDocuments)) {
+        if (data.original || data.xerox) {
+          documents.push({ 
+            name, 
+            original: data.original, 
+            xerox: data.xerox,
+            submittedBy: data.submittedBy || '',
+            receivedBy: data.receivedBy || ''
+          });
         }
       }
 
@@ -821,27 +822,38 @@
       let html = '<h3>Select Documents to Issue</h3>';
 
       issuedDocumentsList.forEach((docName) => {
-        html += `
-          <div class="document-item issued">
-            <div class="document-info">
-              <h4>${docName}</h4>
-            </div>
-            <div class="document-actions">
-              <div class="checkbox-group" style="margin: 0;">
-                <label>Select <input type="checkbox" class="docIssued" data-doc="${docName}" onchange="toggleIssuedDoc('${docName}', this.checked)"></label>
-                <input type="number" min="1" value="1" class="docQuantity" data-doc="${docName}" style="width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 3px;" placeholder="Qty">
-              </div>
-            </div>
-          </div>
-        `;
+        let docHtml = 
+          "<div class='document-item issued'>" +
+          "<div class='document-info'>" +
+          "<h4>" + docName + "</h4>" +
+          "</div>" +
+          "<div class='checkbox-group' style='margin: 10px 0;'>" +
+          "<label>Select <input type='checkbox' class='docIssued' data-doc='" + docName + "' onchange=\"toggleIssuedDoc('" + docName + "', this.checked)\"></label>" +
+          "<label>Qty: <input type='number' min='1' value='1' class='docQuantity' data-doc='" + docName + "' style='width: 60px; padding: 5px; border: 1px solid #ddd; border-radius: 3px;' disabled></label>" +
+          "</div>" +
+          "<div class='dropdown-group'>" +
+          "<label>Received By<select class='receivedByIssuedSelect' data-doc='" + docName + "' disabled>" +
+          "<option value=''>-- Select --</option>";
+
+        PERSON_OPTIONS.forEach(person => {
+          docHtml += "<option value='" + person + "'>" + person + "</option>";
+        });
+
+        docHtml += "</select></label>" +
+          "</div>" +
+          "</div>";
+
+        html += docHtml;
       });
 
       listDiv.innerHTML = html;
     }
 
     function toggleIssuedDoc(docName, checked) {
-      const quantityInput = document.querySelector(`.docQuantity[data-doc="${docName}"]`);
+      const quantityInput = document.querySelector(".docQuantity[data-doc='" + docName + "']");
+      const receivedBySelect = document.querySelector(".receivedByIssuedSelect[data-doc='" + docName + "']");
       quantityInput.disabled = !checked;
+      receivedBySelect.disabled = !checked;
     }
 
     function saveDocumentsIssued() {
@@ -854,8 +866,9 @@
       const documents = [];
       document.querySelectorAll('.docIssued:checked').forEach(checkbox => {
         const docName = checkbox.getAttribute('data-doc');
-        const quantity = parseInt(document.querySelector(`.docQuantity[data-doc="${docName}"]`).value) || 1;
-        documents.push({ name: docName, quantity: quantity, remarks: '', status: 'Issued' });
+        const quantity = parseInt(document.querySelector(".docQuantity[data-doc='" + docName + "']").value) || 1;
+        const receivedBy = document.querySelector(".receivedByIssuedSelect[data-doc='" + docName + "']").value || '';
+        documents.push({ name: docName, quantity: quantity, receivedBy: receivedBy, remarks: '', status: 'Issued' });
       });
 
       if (documents.length === 0) {
@@ -899,7 +912,7 @@
     // UTILITY FUNCTIONS
     function showAlert(elementId, message, type) {
       const alertDiv = document.getElementById(elementId);
-      alertDiv.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+      alertDiv.innerHTML = "<div class='alert alert-" + type + "'>" + message + "</div>";
       setTimeout(() => {
         alertDiv.innerHTML = '';
       }, 5000);
